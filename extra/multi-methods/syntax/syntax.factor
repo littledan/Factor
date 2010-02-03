@@ -2,9 +2,10 @@
 ! See http://factorcode.org/license.txt for BSD license.
 USING: accessors arrays assocs combinators definitions effects
 effects.parser help.markup help.private help.topics kernel make
-multi-methods parser prettyprint prettyprint.backend
+multi-methods parser prettyprint prettyprint.backend fry
 prettyprint.custom prettyprint.sections prettyprint.stylesheet
-quotations see see.private sequences splitting words ;
+quotations see see.private sequences splitting words
+locals ;
 FROM: multi-methods => methods ;
 IN: multi-methods.syntax
 
@@ -32,7 +33,7 @@ PRIVATE>
 ! This should be fixed once the syntax is worked out
 SYNTAX: MULTI-GENERIC:
     CREATE-WORD complete-effect parse-variable-effect
-    [ define-generic ] [ "multi-hooks" set-word-prop ] bi-curry* bi ;
+    [ define-generic ] [ [ parse-word ] map "multi-hooks" set-word-prop ] bi-curry* bi ;
 
 M: generic definer drop \ MULTI-GENERIC: f ;
 
@@ -51,19 +52,23 @@ M: generic synopsis*
 : create-method-in ( specializer generic -- method )
     create-method dup save-location f set-word ;
 
-: effect>specializer ( effect -- specializer )
-    parse-variable-effect [
-        in>> [
-            dup array? [
-                second dup effect?
-                [ drop callable ] when
-            ] [ parse-word ] if
-        ] map
-    ] dip append ;
+: correlate ( seq assoc -- seq' )
+    '[ _ at object or ] map ;
+
+:: effect>specializer ( generic effect -- specializer )
+    effect parse-variable-effect :> ( eff vars )
+    eff in>> [
+        dup array? [
+            second dup effect?
+            [ drop callable ] when
+        ] [ parse-word ] if
+    ] map
+    generic "multi-hooks" word-prop vars correlate
+    append ;
 
 : CREATE-METHOD ( -- method )
     scan-word complete-effect
-    [ effect>specializer swap create-method-in ] keep
+    [ dupd effect>specializer swap create-method-in ] keep
     dupd "multi-method-effect" set-word-prop ;
 
 : (METHOD:) ( -- method def ) CREATE-METHOD parse-definition ;
@@ -81,7 +86,7 @@ M: method-body definer
     drop \ METHOD: \ ; ;
 
 SYNTAX: METHOD\
-    scan-word complete-effect effect>specializer
+    scan-word dup complete-effect effect>specializer
     swap method <wrapper> suffix! ;
 
 <PRIVATE

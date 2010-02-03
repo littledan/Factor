@@ -14,7 +14,7 @@ DEFER: fake
 
     [ t ] [ { } \ fake <method> method-body? ] unit-test
 
-    [ { } [ ] ] [ \ fake methods prepare-methods [ sort-methods ] dip ] unit-test
+    [ { } [ ] ] [ \ fake [ methods ] keep prepare-methods [ sort-methods ] dip ] unit-test
 
     [ t ] [ { } \ fake multi-dispatch-quot callable? ] unit-test
 

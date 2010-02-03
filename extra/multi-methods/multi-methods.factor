@@ -9,66 +9,14 @@ see sequences sets shuffle sorting vectors vocabs.loader words ;
 IN: multi-methods
 
 ! PART I: Converting hook specializers
-: canonicalize-specializer-0 ( specializer -- specializer' )
-    [ \ f or ] map ;
-
-SYMBOL: args
-
-SYMBOL: hooks
-
-SYMBOL: total
-
-: canonicalize-specializer-1 ( specializer -- specializer' )
-    [
-        [ class? ] filter
-        [ length iota <reversed> [ 1 + neg ] map ] keep zip
-        [ length args [ max ] change ] keep
-    ]
-    [
-        [ pair? ] filter
-        [ keys [ hooks get adjoin ] each ] keep
-    ] bi append ;
-
-: canonicalize-specializer-2 ( specializer -- specializer' )
-    [
-        [
-            {
-                { [ dup integer? ] [ ] }
-                { [ dup word? ] [ hooks get index ] }
-            } cond args get +
-        ] dip
-    ] assoc-map ;
-
-: canonicalize-specializer-3 ( specializer -- specializer' )
-    [ total get object <array> dup <enum> ] dip update ;
-
-: canonicalize-specializers ( methods -- methods' hooks )
-    [
-        [ [ canonicalize-specializer-0 ] dip ] assoc-map
-
-        0 args set
-        V{ } clone hooks set
-
-        [ [ canonicalize-specializer-1 ] dip ] assoc-map
-
-        hooks [ natural-sort ] change
-
-        [ [ canonicalize-specializer-2 ] dip ] assoc-map
-
-        args get hooks get length + total set
-
-        [ [ canonicalize-specializer-3 ] dip ] assoc-map
-
-        hooks get
-    ] with-scope ;
 
 : drop-n-quot ( n -- quot ) \ drop <repetition> >quotation ;
 
 : prepare-method ( method n -- quot )
     [ 1quotation ] [ drop-n-quot ] bi* prepend ;
 
-: prepare-methods ( methods -- methods' prologue )
-    canonicalize-specializers
+: prepare-methods ( methods generic -- methods' prologue )
+    "multi-hooks" word-prop
     [ length [ prepare-method ] curry assoc-map ] keep
     [ [ get ] curry ] map concat [ ] like ;
 
@@ -141,7 +89,7 @@ PREDICATE: generic < word
 
 : make-generic ( generic -- quot )
     [
-        [ methods prepare-methods % sort-methods ] keep
+        [ [ methods ] keep prepare-methods % sort-methods ] keep
         multi-dispatch-quot %
     ] [ ] make ;
 
@@ -212,7 +160,7 @@ M: no-method error.
     dup arguments>> [ class ] map niceify-method .
     nl
     "Available methods: " print
-    generic>> methods canonicalize-specializers drop sort-methods
+    generic>> methods sort-methods
     keys [ niceify-method ] map stack. ;
 
 : forget-method ( specializer generic -- )
