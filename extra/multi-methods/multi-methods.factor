@@ -1,11 +1,11 @@
 ! Copyright (C) 2008, 2009 Slava Pestov.
 ! See http://factorcode.org/license.txt for BSD license.
-USING: kernel math sequences vectors classes classes.algebra
-combinators arrays words assocs parser namespaces make
-definitions prettyprint prettyprint.backend prettyprint.custom
-quotations generalizations debugger io compiler.units
-kernel.private effects accessors hashtables sorting shuffle
-math.order sets see effects.parser ;
+USING: accessors arrays assocs classes classes.algebra
+combinators compiler.units debugger definitions effects
+effects.parser generalizations hashtables io kernel
+kernel.private make math math.order namespaces parser
+prettyprint prettyprint.backend prettyprint.custom quotations
+see sequences sets shuffle sorting vectors vocabs.loader words ;
 IN: multi-methods
 
 ! PART I: Converting hook specializers
@@ -210,9 +210,14 @@ M: no-method error.
 : forget-method ( specializer generic -- )
     [ delete-at ] with-methods ;
 
-: method>spec ( method -- spec )
-    [ "multi-method-specializer" word-prop ]
-    [ "multi-method-generic" word-prop ] bi prefix ;
+M: method-body forget*
+    [
+        "multi-method-specializer" "multi-method-generic"
+        [ word-prop ] bi-curry@ bi forget-method
+    ] [ call-next-method ] bi ;
+
+M: generic forget*
+    [ methods values [ forget ] each ] [ call-next-method ] bi ;
 
 : define-generic ( word effect -- )
     over set-stack-effect
@@ -222,60 +227,4 @@ M: no-method error.
         bi
     ] if ;
 
-! Syntax
-SYNTAX: GENERIC: CREATE-WORD complete-effect define-generic ;
-
-: parse-method ( -- quot classes generic )
-    parse-definition [ 2 tail ] [ second ] [ first ] tri ;
-
-: create-method-in ( specializer generic -- method )
-    create-method dup save-location f set-word ;
-
-: CREATE-METHOD ( -- method )
-    scan-word scan-object swap create-method-in ;
-
-: (METHOD:) ( -- method def ) CREATE-METHOD parse-definition ;
-
-SYNTAX: METHOD: (METHOD:) define ;
-
-! For compatibility
-SYNTAX: M:
-    scan-word 1array scan-word create-method-in
-    parse-definition
-    define ;
-
-! Definition protocol. We qualify core generics here
-QUALIFIED: syntax
-
-syntax:M: generic definer drop \ GENERIC: f ;
-
-syntax:M: generic definition drop f ;
-
-PREDICATE: method-spec < array
-    unclip generic? [ [ class? ] all? ] dip and ;
-
-syntax:M: method-spec where
-    dup unclip method [ ] [ first ] ?if where ;
-
-syntax:M: method-spec set-where
-    unclip method set-where ;
-
-syntax:M: method-spec definer
-    unclip method definer ;
-
-syntax:M: method-spec definition
-    unclip method definition ;
-
-syntax:M: method-spec synopsis*
-    unclip method synopsis* ;
-
-syntax:M: method-spec forget*
-    unclip method forget* ;
-
-syntax:M: method-body definer
-    drop \ METHOD: \ ; ;
-
-syntax:M: method-body synopsis*
-    dup definer.
-    [ "multi-method-generic" word-prop pprint-word ]
-    [ "multi-method-specializer" word-prop pprint* ] bi ;
+"multi-methods.syntax" require
