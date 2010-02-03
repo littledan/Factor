@@ -16,10 +16,10 @@ SINGLETON: rock     INSTANCE: rock thing
 
 MULTI-GENERIC: beats? ( obj1 obj2 -- ? )
 
-METHOD: beats? { paper scissors } 2drop t ;
-METHOD: beats? { scissors rock } 2drop t ;
-METHOD: beats? { rock paper } 2drop t ;
-METHOD: beats? { thing thing } 2drop f ;
+METHOD: beats? ( obj1: paper obj2: scissors -- ? ) 2drop t ;
+METHOD: beats? ( obj1: scissors obj2: rock -- ? ) 2drop t ;
+METHOD: beats? ( obj1: rock obj2: paper -- ? ) 2drop t ;
+METHOD: beats? ( obj1: thing obj2: thing -- ? ) 2drop f ;
 
 : play ( obj1 obj2 -- ? ) beats? ;
 
@@ -30,15 +30,15 @@ METHOD: beats? { thing thing } 2drop f ;
 [ t ] [ paper scissors play ] unit-test
 [ f ] [ scissors paper play ] unit-test
 
-[ ] [ METHOD\ beats? { paper scissors } see ] unit-test
+[ ] [ METHOD\ beats? ( obj1: paper obj2: scissors -- ? ) see ] unit-test
 
 SYMBOL: some-var
 
-MULTI-GENERIC: hook-test ( obj -- obj )
+MULTI-GENERIC: hook-test ( obj -- obj | some-var )
 
-METHOD: hook-test { array { some-var array } } reverse ;
-METHOD: hook-test { { some-var array } } class ;
-METHOD: hook-test { hashtable { some-var number } } assoc-size ;
+METHOD: hook-test ( foo: array -- bar | some-var: array ) reverse ;
+METHOD: hook-test ( obj -- obj | some-var: array ) class ;
+METHOD: hook-test ( foo: hashtable -- obj | some-var: number ) assoc-size ;
 
 { 1 2 3 } some-var set
 [ { f t t } ] [ { t t f } hook-test ] unit-test
@@ -59,6 +59,6 @@ TUPLE: busted-3 ;
 
 MULTI-GENERIC: busted-sort ( obj1 obj2 -- obj1 obj2 )
 
-METHOD: busted-sort { busted-1 busted-2 } ;
-METHOD: busted-sort { busted-2 busted-3 } ;
-METHOD: busted-sort { busted busted } ;
+METHOD: busted-sort ( obj: busted-1 obj: busted-2 -- obj obj ) ;
+METHOD: busted-sort ( obj: busted-2 obj: busted-3 -- obj obj ) ;
+METHOD: busted-sort ( obj: busted obj: busted -- obj obj ) ;

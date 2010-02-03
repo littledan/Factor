@@ -1,4 +1,4 @@
-! Copyright (C) 2008, 2009 Slava Pestov.
+! Copyright (C) 2008, 2010 Slava Pestov, Daniel Ehrenberg.
 ! See http://factorcode.org/license.txt for BSD license.
 USING: accessors arrays assocs classes classes.algebra
 combinators compiler.units debugger definitions effects

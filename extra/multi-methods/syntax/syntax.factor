@@ -1,14 +1,50 @@
-! Copyright (C) 2008, 2010 Daniel Ehrenberg.
+! Copyright (C) 2008, 2010 Slava Pestov, Daniel Ehrenberg.
 ! See http://factorcode.org/license.txt for BSD license.
-USING: arrays definitions effects.parser help.markup
-help.private help.topics kernel make multi-methods parser
-prettyprint prettyprint.backend prettyprint.custom assocs
-prettyprint.sections prettyprint.stylesheet see sequences words ;
+USING: accessors arrays assocs combinators definitions effects
+effects.parser help.markup help.private help.topics kernel make
+multi-methods parser prettyprint prettyprint.backend
+prettyprint.custom prettyprint.sections prettyprint.stylesheet
+quotations see see.private sequences splitting words ;
 FROM: multi-methods => methods ;
 IN: multi-methods.syntax
 
+<PRIVATE
+
+: parse-variable-effect ( effect -- effect' variables )
+    [ in>> ] 
+    [ out>> { "|" } split1 ]
+    [ terminated?>> swap ] tri
+    [ effect boa ] [
+        [
+            dup array?
+            [ first2 [ parse-word ] dip 2array ] when
+        ] map
+    ] bi* ;
+
+: generic-stack-effect ( generic -- effect )
+    [ stack-effect [ in>> ] [ out>> ] bi ]
+    [ "multi-hooks" word-prop ] bi
+    [ { "|" } swap 3append ] unless-empty <effect> ;
+
+PRIVATE>
+
+! For now: ignore uppper bounds defined in GENERIC:
+! This should be fixed once the syntax is worked out
 SYNTAX: MULTI-GENERIC:
-    CREATE-WORD complete-effect define-generic ;
+    CREATE-WORD complete-effect parse-variable-effect
+    [ define-generic ] [ "multi-hooks" set-word-prop ] bi-curry* bi ;
+
+M: generic definer drop \ MULTI-GENERIC: f ;
+
+M: generic definition drop f ;
+
+M: generic synopsis*
+    {
+        [ seeing-word ]
+        [ definer. ]
+        [ pprint-word ]
+        [ generic-stack-effect pprint-effect ]
+    } cleave ;
 
 <PRIVATE
 
@@ -18,8 +54,20 @@ SYNTAX: MULTI-GENERIC:
 : create-method-in ( specializer generic -- method )
     create-method dup save-location f set-word ;
 
+: effect>specializer ( effect -- specializer )
+    parse-variable-effect [
+        in>> [
+            dup array? [
+                second dup effect?
+                [ drop callable ] when
+            ] [ drop object ] if
+        ] map
+    ] dip append ;
+
 : CREATE-METHOD ( -- method )
-    scan-word scan-object swap create-method-in ;
+    scan-word complete-effect
+    [ effect>specializer swap create-method-in ] keep
+    dupd "multi-method-effect" set-word-prop ;
 
 : (METHOD:) ( -- method def ) CREATE-METHOD parse-definition ;
 
@@ -27,19 +75,17 @@ PRIVATE>
 
 SYNTAX: METHOD: (METHOD:) define ;
 
-M: generic definer drop \ MULTI-GENERIC: f ;
-
-M: generic definition drop f ;
-
 M: method-body synopsis*
     dup definer.
     [ "multi-method-generic" word-prop pprint-word ]
-    [ "multi-method-specializer" word-prop pprint* ] bi ;
+    [ "multi-method-effect" word-prop pprint-effect ] bi ;
 
 M: method-body definer
     drop \ METHOD: \ ; ;
 
-SYNTAX: METHOD\ scan-word scan-object swap method <wrapper> suffix! ;
+SYNTAX: METHOD\
+    scan-word complete-effect effect>specializer
+    swap method <wrapper> suffix! ;
 
 <PRIVATE
 
@@ -61,10 +107,6 @@ SYNTAX: METHOD\ scan-word scan-object swap method <wrapper> suffix! ;
 M: generic article-content word-with-methods ;
 
 M: method-body pprint*
-    [
-        [
-            [ "METHOD\\ " % "multi-method-generic" word-prop word-name* % ]
-            [ " " % "multi-method-specializer" word-prop unparse % ]
-            bi
-        ] "" make
-    ] [ word-style ] bi styled-text ;
+    \ METHOD\ pprint-word
+    [ "multi-method-generic" word-prop pprint-word ]
+    [ "multi-method-effect" word-prop pprint-effect ] bi ;
