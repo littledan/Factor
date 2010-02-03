@@ -1,5 +1,5 @@
 USING: multi-methods multi-methods.syntax tools.test math
-sequences namespaces system
+sequences namespaces system eval
 kernel strings definitions prettyprint debugger arrays
 hashtables continuations classes assocs accessors see ;
 IN: multi-methods.tests
@@ -16,9 +16,9 @@ SINGLETON: rock     INSTANCE: rock thing
 
 MULTI-GENERIC: beats? ( obj1 obj2 -- ? )
 
-METHOD: beats? ( obj1: paper obj2: scissors -- ? ) 2drop t ;
-METHOD: beats? ( obj1: scissors obj2: rock -- ? ) 2drop t ;
-METHOD: beats? ( obj1: rock obj2: paper -- ? ) 2drop t ;
+METHOD: beats? ( paper scissors -- ? ) 2drop t ;
+METHOD: beats? ( scissors obj2: rock -- ? ) 2drop t ;
+METHOD: beats? ( obj1: rock paper -- ? ) 2drop t ;
 METHOD: beats? ( obj1: thing obj2: thing -- ? ) 2drop f ;
 
 : play ( obj1 obj2 -- ? ) beats? ;
@@ -37,7 +37,7 @@ SYMBOL: some-var
 MULTI-GENERIC: hook-test ( obj -- obj | some-var )
 
 METHOD: hook-test ( foo: array -- bar | some-var: array ) reverse ;
-METHOD: hook-test ( obj -- obj | some-var: array ) class ;
+METHOD: hook-test ( object -- obj | some-var: array ) class ;
 METHOD: hook-test ( foo: hashtable -- obj | some-var: number ) assoc-size ;
 
 { 1 2 3 } some-var set
@@ -62,3 +62,6 @@ MULTI-GENERIC: busted-sort ( obj1 obj2 -- obj1 obj2 )
 METHOD: busted-sort ( obj: busted-1 obj: busted-2 -- obj obj ) ;
 METHOD: busted-sort ( obj: busted-2 obj: busted-3 -- obj obj ) ;
 METHOD: busted-sort ( obj: busted obj: busted -- obj obj ) ;
+
+[ "USING: multi-methods.syntax multi-methods.tests arrays ;
+METHOD: busted-sort ( a b -- c d | some-var: array ) ;" eval( -- ) ] must-fail

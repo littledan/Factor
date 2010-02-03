@@ -167,7 +167,15 @@ M: method-body crossref?
         "multi-method-specializer" set
     ] H{ } make-assoc ;
 
+ERROR: extra-hooks ;
+
+: check-hooks ( specializer generic -- )
+    [ [ array? ] filter [ first ] map ]
+    [ "multi-hooks" word-prop ] bi*
+    subset? [ extra-hooks ] unless ;
+
 : <method> ( specializer generic -- word )
+    2dup check-hooks
     [ method-word-props ] 2keep
     method-word-name f <word>
     swap >>props ;

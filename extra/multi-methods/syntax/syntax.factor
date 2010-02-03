@@ -48,9 +48,6 @@ M: generic synopsis*
 
 <PRIVATE
 
-: parse-method ( -- quot classes generic )
-    parse-definition [ 2 tail ] [ second ] [ first ] tri ;
-
 : create-method-in ( specializer generic -- method )
     create-method dup save-location f set-word ;
 
@@ -60,7 +57,7 @@ M: generic synopsis*
             dup array? [
                 second dup effect?
                 [ drop callable ] when
-            ] [ drop object ] if
+            ] [ parse-word ] if
         ] map
     ] dip append ;
 
