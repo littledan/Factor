@@ -5,22 +5,20 @@ combinators compiler.units debugger definitions effects
 effects.parser generalizations hashtables io kernel fry
 kernel.private make math math.order namespaces parser
 prettyprint prettyprint.backend prettyprint.custom quotations
-see sequences sets shuffle sorting vectors vocabs.loader words ;
+see sequences sets shuffle sorting vectors vocabs.loader words
+macros combinators.short-circuit ;
 IN: multi-methods
 
-! PART I: Converting hook specializers
-
-: drop-n-quot ( n -- quot ) \ drop <repetition> >quotation ;
-
+! Dropping hook variables before method calls
 : prepare-method ( method n -- quot )
-    [ 1quotation ] [ drop-n-quot ] bi* prepend ;
+    swap '[ _ ndrop _ execute ] ;
 
 : prepare-methods ( methods generic -- methods' prologue )
     "multi-hooks" word-prop
     [ length [ prepare-method ] curry assoc-map ] keep
     [ [ get ] curry ] map concat [ ] like ;
 
-! Part II: Topologically sorting specializers
+! Topologically sorting specializers, online as they are added
 : classes< ( seq1 seq2 -- lt/eq/gt )
     [
         {
@@ -30,7 +28,7 @@ IN: multi-methods
             { [ 2dup swap class<= ] [ +gt+ ] }
             [ +eq+ ]
         } cond 2nip
-    ] 2map [ +eq+ eq? not ] find nip +eq+ or ;
+    ] 2map [ +eq+ = not ] find nip +eq+ or ;
 
 : insert-nth! ( elt i seq -- )
     {
@@ -41,7 +39,6 @@ IN: multi-methods
     } 2cleave ;
 
 : find-position ( spec/method method-list -- i )
-    ! Are we sure that this is correct?
     [ [ first ] bi@ class< +gt+ = ] with find-last drop
     0 or ;
 
@@ -50,12 +47,7 @@ IN: multi-methods
 
 ! PART III: Creating dispatch quotation
 : picker ( n -- quot )
-    {
-        { 0 [ [ dup ] ] }
-        { 1 [ [ over ] ] }
-        { 2 [ [ pick ] ] }
-        [ 1 - picker [ dip swap ] curry ]
-    } case ;
+    1 + '[ _ npick ] ;
 
 : (multi-predicate) ( class picker -- quot )
     swap "predicate" word-prop append ;
@@ -64,10 +56,8 @@ IN: multi-methods
     dup length iota <reversed>
     [ picker 2array ] 2map
     [ drop object eq? not ] assoc-filter
-    [ [ t ] ] [
-        [ (multi-predicate) ] { } assoc>map
-        unclip [ swap [ f ] \ if 3array append [ ] like ] reduce
-    ] if-empty ;
+    [ (multi-predicate) ] { } assoc>map
+    '[ _ 0&& ] ;
 
 : argument-count ( methods -- n )
     keys 0 [ length max ] reduce ;
