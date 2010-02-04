@@ -2,7 +2,7 @@
 ! See http://factorcode.org/license.txt for BSD license.
 USING: accessors arrays assocs classes classes.algebra
 combinators compiler.units debugger definitions effects
-effects.parser generalizations hashtables io kernel
+effects.parser generalizations hashtables io kernel fry
 kernel.private make math math.order namespaces parser
 prettyprint prettyprint.backend prettyprint.custom quotations
 see sequences sets shuffle sorting vectors vocabs.loader words ;
@@ -21,17 +21,6 @@ IN: multi-methods
     [ [ get ] curry ] map concat [ ] like ;
 
 ! Part II: Topologically sorting specializers
-: maximal-element ( seq quot -- n elt )
-    dupd [
-        swapd [ call +lt+ = ] 2curry filter empty?
-    ] 2curry find [ "Topological sort failed" throw ] unless* ;
-    inline
-
-: topological-sort ( seq quot -- newseq )
-    [ >vector [ dup empty? not ] ] dip
-    [ dupd maximal-element [ over remove-nth! drop ] dip ] curry
-    produce nip ; inline
-
 : classes< ( seq1 seq2 -- lt/eq/gt )
     [
         {
@@ -43,8 +32,21 @@ IN: multi-methods
         } cond 2nip
     ] 2map [ +eq+ eq? not ] find nip +eq+ or ;
 
-: sort-methods ( alist -- alist' )
-    [ [ first ] bi@ classes< ] topological-sort ;
+: insert-nth! ( elt i seq -- )
+    {
+        [ swap tail ]
+        [ set-length ]
+        [ nip swapd push ]
+        [ nip push-all ]
+    } 2cleave ;
+
+: find-position ( spec/method method-list -- i )
+    ! Are we sure that this is correct?
+    [ [ first ] bi@ class< +gt+ = ] with find-last drop
+    0 or ;
+
+: insert-method ( spec/method method-list -- )
+    2dup find-position swap insert-nth! ;
 
 ! PART III: Creating dispatch quotation
 : picker ( n -- quot )
@@ -77,7 +79,7 @@ ERROR: no-method arguments generic ;
 
 : multi-dispatch-quot ( methods generic -- quot )
     [ make-default-method ]
-    [ drop [ [ multi-predicate ] dip ] assoc-map reverse ]
+    [ drop [ [ multi-predicate ] dip ] assoc-map ]
     2bi alist>quot ;
 
 ! Generic words
@@ -85,11 +87,11 @@ PREDICATE: generic < word
     "multi-methods" word-prop >boolean ;
 
 : methods ( word -- alist )
-    "multi-methods" word-prop >alist ;
+    "method-list" word-prop ;
 
 : make-generic ( generic -- quot )
     [
-        [ [ methods ] keep prepare-methods % sort-methods ] keep
+        [ [ methods ] keep prepare-methods % ] keep
         multi-dispatch-quot %
     ] [ ] make ;
 
@@ -134,7 +136,8 @@ ERROR: extra-hooks ;
     ] dip update-generic ; inline
 
 : reveal-method ( method classes generic -- )
-    [ set-at ] with-methods ;
+    [ [ swap 2array ] [ "method-list" word-prop ] bi* insert-method ]
+    [ [ set-at ] with-methods ] 3bi ;
 
 : method ( classes word -- method )
     "multi-methods" word-prop at ;
@@ -160,11 +163,12 @@ M: no-method error.
     dup arguments>> [ class ] map niceify-method .
     nl
     "Available methods: " print
-    generic>> methods sort-methods
+    generic>> methods
     keys [ niceify-method ] map stack. ;
 
 : forget-method ( specializer generic -- )
-    [ delete-at ] with-methods ;
+    [ "method-list" word-prop swap '[ first _ = not ] filter! drop ]
+    [ [ delete-at ] with-methods ] 2bi ;
 
 M: method-body forget*
     [
@@ -178,9 +182,10 @@ M: generic forget*
 : define-generic ( word effect -- )
     over set-stack-effect
     dup "multi-methods" word-prop [ drop ] [
+        [ V{ } clone "method-list" set-word-prop ]
         [ H{ } clone "multi-methods" set-word-prop ]
         [ update-generic ]
-        bi
+        tri
     ] if ;
 
 "multi-methods.syntax" require

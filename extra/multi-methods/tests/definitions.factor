@@ -4,6 +4,7 @@ IN: multi-methods.tests
 
 DEFER: fake
 \ fake H{ } clone "multi-methods" set-word-prop
+\ fake V{ } clone "method-list" set-word-prop
 << (( -- )) \ fake set-stack-effect >>
 
 [
@@ -14,7 +15,7 @@ DEFER: fake
 
     [ t ] [ { } \ fake <method> method-body? ] unit-test
 
-    [ { } [ ] ] [ \ fake [ methods ] keep prepare-methods [ sort-methods ] dip ] unit-test
+    [ V{ } [ ] ] [ \ fake [ methods ] keep prepare-methods ] unit-test
 
     [ t ] [ { } \ fake multi-dispatch-quot callable? ] unit-test
 
