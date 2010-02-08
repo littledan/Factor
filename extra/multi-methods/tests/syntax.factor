@@ -28,7 +28,14 @@ METHOD: beats? ( obj1: thing obj2: thing -- ? ) 2drop f ;
 [ ] [ error get error. ] unit-test
 [ { { } 3 } ] [ error get arguments>> ] unit-test
 [ t ] [ paper scissors play ] unit-test
+[ t ] [ scissors rock play ] unit-test
+[ t ] [ rock paper play ] unit-test
 [ f ] [ scissors paper play ] unit-test
+[ f ] [ scissors scissors play ] unit-test
+[ f ] [ paper paper play ] unit-test
+[ f ] [ paper rock play ] unit-test
+[ f ] [ rock scissors play ] unit-test
+[ f ] [ rock rock play ] unit-test
 
 [ ] [ METHOD\ beats? ( obj1: paper obj2: scissors -- ? ) see ] unit-test
 

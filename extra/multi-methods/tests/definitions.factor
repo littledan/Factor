@@ -17,9 +17,7 @@ DEFER: fake
 
     [ V{ } [ ] ] [ \ fake [ methods ] keep prepare-methods ] unit-test
 
-    [ t ] [ { } \ fake multi-dispatch-quot callable? ] unit-test
-
-    [ t ] [ \ fake make-generic quotation? ] unit-test
+    [ t ] [ \ fake make-generic callable? ] unit-test
 
     [ ] [ \ fake update-generic ] unit-test
 
@@ -29,3 +27,6 @@ DEFER: fake
 
     [ t ] [ \ testing generic? ] unit-test
 ] with-compilation-unit
+
+[ 5 "hi" t ] [ 5 "hi" { integer string } prepare-specifier 2 works? ] unit-test
+[ "hi" 5 f ] [ "hi" 5 { integer string } prepare-specifier 2 works? ] unit-test

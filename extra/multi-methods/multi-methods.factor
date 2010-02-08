@@ -6,7 +6,7 @@ effects.parser generalizations hashtables io kernel fry
 kernel.private make math math.order namespaces parser
 prettyprint prettyprint.backend prettyprint.custom quotations
 see sequences sets shuffle sorting vectors vocabs.loader words
-macros combinators.short-circuit ;
+macros combinators.short-circuit locals ;
 IN: multi-methods
 
 ! Dropping hook variables before method calls
@@ -46,31 +46,11 @@ IN: multi-methods
     2dup find-position swap insert-nth! ;
 
 ! PART III: Creating dispatch quotation
-: picker ( n -- quot )
-    1 + '[ _ npick ] ;
-
-: (multi-predicate) ( class picker -- quot )
-    swap "predicate" word-prop append ;
-
-: multi-predicate ( classes -- quot )
-    dup length iota <reversed>
-    [ picker 2array ] 2map
-    [ drop object eq? not ] assoc-filter
-    [ (multi-predicate) ] { } assoc>map
-    '[ _ 0&& ] ;
-
-: argument-count ( methods -- n )
-    keys 0 [ length max ] reduce ;
-
 ERROR: no-method arguments generic ;
 
-: make-default-method ( methods generic -- quot )
-    [ argument-count ] dip [ [ narray ] dip no-method ] 2curry ;
-
-: multi-dispatch-quot ( methods generic -- quot )
-    [ make-default-method ]
-    [ drop [ [ multi-predicate ] dip ] assoc-map ]
-    2bi alist>quot ;
+: make-default-method ( generic -- quot )
+    [ stack-effect in>> length ] keep
+    [ [ narray ] dip no-method ] 2curry ;
 
 ! Generic words
 PREDICATE: generic < word
@@ -79,11 +59,44 @@ PREDICATE: generic < word
 : methods ( word -- alist )
     "method-list" word-prop ;
 
-: make-generic ( generic -- quot )
+: [works?] ( len -- quot )
+    iota [
+        [ 1 + ] keep '[
+            [ _ npick ] dip
+            _ swap nth
+            call( object -- ? )
+        ]
+    ] map '[ _ 1&& ] ;
+
+MACRO: works? ( len -- quot )
+    [works?] ;
+
+: prepare-specifier ( specifier -- specifier' )
+    ! This should happen before runtime,
+    ! but for now it's happening at runtime
+    reverse [ "predicate" word-prop ] map ;
+
+MACRO:: dispatch ( hooks effect default -- quot )
+    effect in>> length :> #args
+    #args hooks length + [works?] :> checker
     [
-        [ [ methods ] keep prepare-methods % ] keep
-        multi-dispatch-quot %
+        hooks [ '[ _ get ] % ] each
+        [ [ first prepare-specifier checker call ] find-last nip ] %
+        hooks length '[ _ nnip ] %
+        [
+            [ second effect execute-effect ]
+            [ default effect call-effect ] if*
+        ] %
     ] [ ] make ;
+
+: make-generic ( generic -- quot )
+    {
+        [ methods ]
+        [ "multi-hooks" word-prop ]
+        [ stack-effect ]
+        [ make-default-method ]
+    } cleave
+    '[ _ _ _ _ dispatch ] ;
 
 : update-generic ( word -- )
     dup make-generic define ;
