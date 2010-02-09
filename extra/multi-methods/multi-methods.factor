@@ -180,8 +180,11 @@ M: method-body forget*
 M: generic forget*
     [ methods values [ forget ] each ] [ call-next-method ] bi ;
 
-: define-generic ( word effect -- )
-    over set-stack-effect
+: define-generic ( word effect multi-hooks -- )
+    [ over set-stack-effect ] dip
+    ! If multi-hooks is already set to something, then
+    ! method-list and multi-methods need to be modified
+    dupd "multi-hooks" set-word-prop
     dup "multi-methods" word-prop [ drop ] [
         [ V{ } clone "method-list" set-word-prop ]
         [ H{ } clone "multi-methods" set-word-prop ]

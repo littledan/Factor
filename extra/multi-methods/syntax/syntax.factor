@@ -18,7 +18,8 @@ IN: multi-methods.syntax
     [ effect boa ] [
         [
             dup array?
-            [ first2 [ parse-word ] dip 2array ] when
+            [ first2 [ parse-word ] dip 2array ]
+            [ parse-word ] if
         ] map
     ] bi* ;
 
@@ -32,8 +33,7 @@ PRIVATE>
 ! For now: ignore uppper bounds defined in GENERIC:
 ! This should be fixed once the syntax is worked out
 SYNTAX: MULTI-GENERIC:
-    CREATE-WORD complete-effect parse-variable-effect
-    [ define-generic ] [ [ parse-word ] map "multi-hooks" set-word-prop ] bi-curry* bi ;
+    CREATE-WORD complete-effect parse-variable-effect define-generic ;
 
 M: generic definer drop \ MULTI-GENERIC: f ;
 

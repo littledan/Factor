@@ -23,10 +23,12 @@ DEFER: fake
 
     DEFER: testing
 
-    [ ] [ \ testing (( -- )) define-generic ] unit-test
+    [ ] [ \ testing (( -- )) { } define-generic ] unit-test
 
     [ t ] [ \ testing generic? ] unit-test
 ] with-compilation-unit
 
 [ 5 "hi" t ] [ 5 "hi" { integer string } prepare-specifier 2 [works?] call ] unit-test
 [ "hi" 5 f ] [ "hi" 5 { integer string } prepare-specifier 2 [works?] call ] unit-test
+[ "hi" "hi" f ] [ "hi" "hi" { integer string } prepare-specifier 2 [works?] call ] unit-test
+[ 5 5 f ] [ 5 5 { integer string } prepare-specifier 2 [works?] call ] unit-test
