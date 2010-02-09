@@ -50,7 +50,8 @@ ERROR: no-method arguments generic ;
 
 : make-default-method ( generic -- quot )
     [ stack-effect in>> length ] keep
-    [ [ narray ] dip no-method ] 2curry ;
+    [ "multi-hooks" word-prop ] keep
+    [ [ narray ] [ [ get ] map append ] [ ] tri* no-method ] 3curry ;
 
 ! Generic words
 PREDICATE: generic < word
@@ -80,7 +81,7 @@ MACRO:: dispatch ( hooks effect default -- quot )
     effect in>> length :> #args
     #args hooks length + [works?] :> checker
     [
-        hooks [ '[ _ get ] % ] each
+        hooks [ '[ _ get ] ] map concat '[ _ dip ] %
         [ [ first prepare-specifier checker call ] find-last nip ] %
         hooks length '[ _ nnip ] %
         [
