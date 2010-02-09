@@ -28,5 +28,5 @@ DEFER: fake
     [ t ] [ \ testing generic? ] unit-test
 ] with-compilation-unit
 
-[ 5 "hi" t ] [ 5 "hi" { integer string } prepare-specifier 2 works? ] unit-test
-[ "hi" 5 f ] [ "hi" 5 { integer string } prepare-specifier 2 works? ] unit-test
+[ 5 "hi" t ] [ 5 "hi" { integer string } prepare-specifier 2 [works?] call ] unit-test
+[ "hi" 5 f ] [ "hi" 5 { integer string } prepare-specifier 2 [works?] call ] unit-test

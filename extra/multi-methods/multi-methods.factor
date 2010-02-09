@@ -69,12 +69,7 @@ PREDICATE: generic < word
         ]
     ] map '[ _ 1&& ] ;
 
-MACRO: works? ( len -- quot )
-    [works?] ;
-
 : prepare-specifier ( specifier -- specifier' )
-    ! This should happen before runtime,
-    ! but for now it's happening at runtime
     reverse [ "predicate" word-prop ] map ;
 
 MACRO:: dispatch ( hooks effect default -- quot )
@@ -82,7 +77,7 @@ MACRO:: dispatch ( hooks effect default -- quot )
     #args hooks length + [works?] :> checker
     [
         hooks [ '[ _ get ] ] map concat '[ _ dip ] %
-        [ [ first prepare-specifier checker call ] find-last nip ] %
+        [ [ third checker call ] find-last nip ] %
         hooks length '[ _ nnip ] %
         [
             [ second effect execute-effect ]
@@ -140,8 +135,10 @@ ERROR: extra-hooks ;
     ] dip update-generic ; inline
 
 : reveal-method ( method classes generic -- )
-    [ [ swap 2array ] [ "method-list" word-prop ] bi* insert-method ]
-    [ [ set-at ] with-methods ] 3bi ;
+    [
+        [ swap over prepare-specifier 3array ]
+        [ "method-list" word-prop ] bi* insert-method
+    ] [ [ set-at ] with-methods ] 3bi ;
 
 : method ( classes word -- method )
     "multi-methods" word-prop at ;
