@@ -1,10 +1,10 @@
-USING: multi-methods tools.test math sequences namespaces system
+USING: multi-methods multi-methods.syntax tools.test math
+sequences namespaces system eval
 kernel strings definitions prettyprint debugger arrays
 hashtables continuations classes assocs accessors see ;
-RENAME: GENERIC: multi-methods => multi-methods:GENERIC:
 IN: multi-methods.tests
 
-multi-methods:GENERIC: first-test ( -- )
+MULTI-GENERIC: first-test ( -- )
 
 [ t ] [ \ first-test generic? ] unit-test
 
@@ -14,12 +14,12 @@ SINGLETON: paper    INSTANCE: paper thing
 SINGLETON: scissors INSTANCE: scissors thing
 SINGLETON: rock     INSTANCE: rock thing
 
-multi-methods:GENERIC: beats? ( obj1 obj2 -- ? )
+MULTI-GENERIC: beats? ( obj1 obj2 -- ? )
 
-METHOD: beats? { paper scissors } 2drop t ;
-METHOD: beats? { scissors rock } 2drop t ;
-METHOD: beats? { rock paper } 2drop t ;
-METHOD: beats? { thing thing } 2drop f ;
+METHOD: beats? ( paper scissors -- ? ) 2drop t ;
+METHOD: beats? ( scissors obj2: rock -- ? ) 2drop t ;
+METHOD: beats? ( obj1: rock paper -- ? ) 2drop t ;
+METHOD: beats? ( obj1: thing obj2: thing -- ? ) 2drop f ;
 
 : play ( obj1 obj2 -- ? ) beats? ;
 
@@ -28,18 +28,24 @@ METHOD: beats? { thing thing } 2drop f ;
 [ ] [ error get error. ] unit-test
 [ { { } 3 } ] [ error get arguments>> ] unit-test
 [ t ] [ paper scissors play ] unit-test
+[ t ] [ scissors rock play ] unit-test
+[ t ] [ rock paper play ] unit-test
 [ f ] [ scissors paper play ] unit-test
+[ f ] [ scissors scissors play ] unit-test
+[ f ] [ paper paper play ] unit-test
+[ f ] [ paper rock play ] unit-test
+[ f ] [ rock scissors play ] unit-test
+[ f ] [ rock rock play ] unit-test
 
-[ t ] [ { beats? paper scissors } method-spec? ] unit-test
-[ ] [ { beats? paper scissors } see ] unit-test
+[ ] [ METHOD\ beats? ( obj1: paper obj2: scissors -- ? ) see ] unit-test
 
 SYMBOL: some-var
 
-multi-methods:GENERIC: hook-test ( obj -- obj )
+MULTI-GENERIC: hook-test ( obj -- obj | some-var )
 
-METHOD: hook-test { array { some-var array } } reverse ;
-METHOD: hook-test { { some-var array } } class ;
-METHOD: hook-test { hashtable { some-var number } } assoc-size ;
+METHOD: hook-test ( foo: array -- bar | some-var: array ) reverse ;
+METHOD: hook-test ( object -- obj | some-var: array ) class ;
+METHOD: hook-test ( foo: hashtable -- obj | some-var: number ) assoc-size ;
 
 { 1 2 3 } some-var set
 [ { f t t } ] [ { t t f } hook-test ] unit-test
@@ -58,8 +64,11 @@ TUPLE: busted-1 ;
 TUPLE: busted-2 ; INSTANCE: busted-2 busted
 TUPLE: busted-3 ;
 
-multi-methods:GENERIC: busted-sort ( obj1 obj2 -- obj1 obj2 )
+MULTI-GENERIC: busted-sort ( obj1 obj2 -- obj1 obj2 )
 
-METHOD: busted-sort { busted-1 busted-2 } ;
-METHOD: busted-sort { busted-2 busted-3 } ;
-METHOD: busted-sort { busted busted } ;
+METHOD: busted-sort ( obj: busted-1 obj: busted-2 -- obj obj ) ;
+METHOD: busted-sort ( obj: busted-2 obj: busted-3 -- obj obj ) ;
+METHOD: busted-sort ( obj: busted obj: busted -- obj obj ) ;
+
+[ "USING: multi-methods.syntax multi-methods.tests arrays ;
+METHOD: busted-sort ( a b -- c d | some-var: array ) ;" eval( -- ) ] must-fail

@@ -1,90 +1,25 @@
-! Copyright (C) 2008, 2009 Slava Pestov.
+! Copyright (C) 2008, 2010 Slava Pestov, Daniel Ehrenberg.
 ! See http://factorcode.org/license.txt for BSD license.
-USING: kernel math sequences vectors classes classes.algebra
-combinators arrays words assocs parser namespaces make
-definitions prettyprint prettyprint.backend prettyprint.custom
-quotations generalizations debugger io compiler.units
-kernel.private effects accessors hashtables sorting shuffle
-math.order sets see effects.parser ;
+USING: accessors arrays assocs classes classes.algebra
+combinators compiler.units debugger definitions effects
+effects.parser generalizations hashtables io kernel fry
+kernel.private make math math.order namespaces parser
+prettyprint prettyprint.backend prettyprint.custom quotations
+see sequences sets shuffle sorting vectors vocabs.loader words
+macros combinators.short-circuit locals ;
 FROM: namespaces => set ;
 IN: multi-methods
 
-! PART I: Converting hook specializers
-: canonicalize-specializer-0 ( specializer -- specializer' )
-    [ \ f or ] map ;
-
-SYMBOL: args
-
-SYMBOL: hooks
-
-SYMBOL: total
-
-: canonicalize-specializer-1 ( specializer -- specializer' )
-    [
-        [ class? ] filter
-        [ length iota <reversed> [ 1 + neg ] map ] keep zip
-        [ length args [ max ] change ] keep
-    ]
-    [
-        [ pair? ] filter
-        [ keys [ hooks get adjoin ] each ] keep
-    ] bi append ;
-
-: canonicalize-specializer-2 ( specializer -- specializer' )
-    [
-        [
-            {
-                { [ dup integer? ] [ ] }
-                { [ dup word? ] [ hooks get index ] }
-            } cond args get +
-        ] dip
-    ] assoc-map ;
-
-: canonicalize-specializer-3 ( specializer -- specializer' )
-    [ total get object <array> <enum> ] dip assoc-union! seq>> ;
-
-: canonicalize-specializers ( methods -- methods' hooks )
-    [
-        [ [ canonicalize-specializer-0 ] dip ] assoc-map
-
-        0 args set
-        V{ } clone hooks set
-
-        [ [ canonicalize-specializer-1 ] dip ] assoc-map
-
-        hooks [ natural-sort ] change
-
-        [ [ canonicalize-specializer-2 ] dip ] assoc-map
-
-        args get hooks get length + total set
-
-        [ [ canonicalize-specializer-3 ] dip ] assoc-map
-
-        hooks get
-    ] with-scope ;
-
-: drop-n-quot ( n -- quot ) \ drop <repetition> >quotation ;
-
+! Dropping hook variables before method calls
 : prepare-method ( method n -- quot )
-    [ 1quotation ] [ drop-n-quot ] bi* prepend ;
+    swap '[ _ ndrop _ execute ] ;
 
-: prepare-methods ( methods -- methods' prologue )
-    canonicalize-specializers
+: prepare-methods ( methods generic -- methods' prologue )
+    "multi-hooks" word-prop
     [ length [ prepare-method ] curry assoc-map ] keep
     [ [ get ] curry ] map concat [ ] like ;
 
-! Part II: Topologically sorting specializers
-: maximal-element ( seq quot -- n elt )
-    dupd [
-        swapd [ call +lt+ = ] 2curry filter empty?
-    ] 2curry find [ "Topological sort failed" throw ] unless* ;
-    inline
-
-: topological-sort ( seq quot -- newseq )
-    [ >vector [ dup empty? not ] ] dip
-    [ dupd maximal-element [ over remove-nth! drop ] dip ] curry
-    produce nip ; inline
-
+! Topologically sorting specializers, online as they are added
 : classes< ( seq1 seq2 -- lt/eq/gt )
     [
         {
@@ -94,57 +29,71 @@ SYMBOL: total
             { [ 2dup swap class<= ] [ +gt+ ] }
             [ +eq+ ]
         } cond 2nip
-    ] 2map [ +eq+ eq? not ] find nip +eq+ or ;
+    ] 2map [ +eq+ = not ] find nip +eq+ or ;
 
-: sort-methods ( alist -- alist' )
-    [ [ first ] bi@ classes< ] topological-sort ;
+: insert-nth! ( elt i seq -- )
+    {
+        [ swap tail ]
+        [ set-length ]
+        [ nip swapd push ]
+        [ nip push-all ]
+    } 2cleave ;
+
+: find-position ( spec/method method-list -- i )
+    [ [ first ] bi@ class< +gt+ = ] with find-last drop
+    0 or ;
+
+: insert-method ( spec/method method-list -- )
+    2dup find-position swap insert-nth! ;
 
 ! PART III: Creating dispatch quotation
-: picker ( n -- quot )
-    {
-        { 0 [ [ dup ] ] }
-        { 1 [ [ over ] ] }
-        { 2 [ [ pick ] ] }
-        [ 1 - picker [ dip swap ] curry ]
-    } case ;
-
-: (multi-predicate) ( class picker -- quot )
-    swap "predicate" word-prop append ;
-
-: multi-predicate ( classes -- quot )
-    dup length iota <reversed>
-    [ picker 2array ] 2map
-    [ drop object eq? not ] assoc-filter
-    [ [ t ] ] [
-        [ (multi-predicate) ] { } assoc>map
-        unclip [ swap [ f ] \ if 3array append [ ] like ] reduce
-    ] if-empty ;
-
-: argument-count ( methods -- n )
-    keys 0 [ length max ] reduce ;
-
 ERROR: no-method arguments generic ;
 
-: make-default-method ( methods generic -- quot )
-    [ argument-count ] dip [ [ narray ] dip no-method ] 2curry ;
-
-: multi-dispatch-quot ( methods generic -- quot )
-    [ make-default-method ]
-    [ drop [ [ multi-predicate ] dip ] assoc-map reverse ]
-    2bi alist>quot ;
+: make-default-method ( generic -- quot )
+    [ stack-effect in>> length ] keep
+    [ "multi-hooks" word-prop ] keep
+    [ [ narray ] [ [ get ] map append ] [ ] tri* no-method ] 3curry ;
 
 ! Generic words
 PREDICATE: generic < word
     "multi-methods" word-prop >boolean ;
 
 : methods ( word -- alist )
-    "multi-methods" word-prop >alist ;
+    "method-list" word-prop ;
+
+: [works?] ( len -- quot )
+    iota [
+        [ 1 + ] keep '[
+            [ _ npick ] dip
+            _ swap nth
+            call( object -- ? )
+        ]
+    ] map '[ _ 1&& ] ;
+
+: prepare-specifier ( specifier -- specifier' )
+    reverse [ "predicate" word-prop ] map ;
+
+MACRO:: dispatch ( hooks effect default -- quot )
+    effect in>> length :> #args
+    #args hooks length + [works?] :> checker
+    [
+        hooks [ '[ _ get ] ] map concat '[ _ dip ] %
+        [ [ third checker call ] find-last nip ] %
+        hooks length '[ _ nnip ] %
+        [
+            [ second effect execute-effect ]
+            [ default effect call-effect ] if*
+        ] %
+    ] [ ] make ;
 
 : make-generic ( generic -- quot )
-    [
-        [ methods prepare-methods % sort-methods ] keep
-        multi-dispatch-quot %
-    ] [ ] make ;
+    {
+        [ methods ]
+        [ "multi-hooks" word-prop ]
+        [ stack-effect ]
+        [ make-default-method ]
+    } cleave
+    '[ _ _ _ _ dispatch ] ;
 
 : update-generic ( word -- )
     dup make-generic define ;
@@ -168,7 +117,15 @@ M: method-body crossref?
         "multi-method-specializer" set
     ] H{ } make-assoc ;
 
+ERROR: extra-hooks ;
+
+: check-hooks ( specializer generic -- )
+    [ [ array? ] filter [ first ] map ]
+    [ "multi-hooks" word-prop ] bi*
+    subset? [ extra-hooks ] unless ;
+
 : <method> ( specializer generic -- word )
+    2dup check-hooks
     [ method-word-props ] 2keep
     method-word-name f <word>
     swap >>props ;
@@ -179,7 +136,10 @@ M: method-body crossref?
     ] dip update-generic ; inline
 
 : reveal-method ( method classes generic -- )
-    [ set-at ] with-methods ;
+    [
+        [ swap over prepare-specifier 3array ]
+        [ "method-list" word-prop ] bi* insert-method
+    ] [ [ set-at ] with-methods ] 3bi ;
 
 : method ( classes word -- method )
     "multi-methods" word-prop at ;
@@ -205,78 +165,32 @@ M: no-method error.
     dup arguments>> [ class ] map niceify-method .
     nl
     "Available methods: " print
-    generic>> methods canonicalize-specializers drop sort-methods
+    generic>> methods
     keys [ niceify-method ] map stack. ;
 
 : forget-method ( specializer generic -- )
-    [ delete-at ] with-methods ;
+    [ "method-list" word-prop swap '[ first _ = not ] filter! drop ]
+    [ [ delete-at ] with-methods ] 2bi ;
 
-: method>spec ( method -- spec )
-    [ "multi-method-specializer" word-prop ]
-    [ "multi-method-generic" word-prop ] bi prefix ;
+M: method-body forget*
+    [
+        "multi-method-specializer" "multi-method-generic"
+        [ word-prop ] bi-curry@ bi forget-method
+    ] [ call-next-method ] bi ;
 
-: define-generic ( word effect -- )
-    over set-stack-effect
+M: generic forget*
+    [ methods values [ forget ] each ] [ call-next-method ] bi ;
+
+: define-generic ( word effect multi-hooks -- )
+    [ over set-stack-effect ] dip
+    ! If multi-hooks is already set to something, then
+    ! method-list and multi-methods need to be modified
+    dupd "multi-hooks" set-word-prop
     dup "multi-methods" word-prop [ drop ] [
+        [ V{ } clone "method-list" set-word-prop ]
         [ H{ } clone "multi-methods" set-word-prop ]
         [ update-generic ]
-        bi
+        tri
     ] if ;
 
-! Syntax
-SYNTAX: GENERIC: CREATE-WORD complete-effect define-generic ;
-
-: parse-method ( -- quot classes generic )
-    parse-definition [ 2 tail ] [ second ] [ first ] tri ;
-
-: create-method-in ( specializer generic -- method )
-    create-method dup save-location f set-word ;
-
-: CREATE-METHOD ( -- method )
-    scan-word scan-object swap create-method-in ;
-
-: (METHOD:) ( -- method def ) CREATE-METHOD parse-definition ;
-
-SYNTAX: METHOD: (METHOD:) define ;
-
-! For compatibility
-SYNTAX: M:
-    scan-word 1array scan-word create-method-in
-    parse-definition
-    define ;
-
-! Definition protocol. We qualify core generics here
-QUALIFIED: syntax
-
-syntax:M: generic definer drop \ GENERIC: f ;
-
-syntax:M: generic definition drop f ;
-
-PREDICATE: method-spec < array
-    unclip generic? [ [ class? ] all? ] dip and ;
-
-syntax:M: method-spec where
-    dup unclip method [ ] [ first ] ?if where ;
-
-syntax:M: method-spec set-where
-    unclip method set-where ;
-
-syntax:M: method-spec definer
-    unclip method definer ;
-
-syntax:M: method-spec definition
-    unclip method definition ;
-
-syntax:M: method-spec synopsis*
-    unclip method synopsis* ;
-
-syntax:M: method-spec forget*
-    unclip method forget* ;
-
-syntax:M: method-body definer
-    drop \ METHOD: \ ; ;
-
-syntax:M: method-body synopsis*
-    dup definer.
-    [ "multi-method-generic" word-prop pprint-word ]
-    [ "multi-method-specializer" word-prop pprint* ] bi ;
+"multi-methods.syntax" require
