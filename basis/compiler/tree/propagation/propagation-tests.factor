@@ -968,3 +968,21 @@ M: tuple-with-read-only-slot clone
 
 [ t ] [ [ { 1 } diff ] { diff } inlined? ] unit-test
 [ f ] [ [ { 1 } swap diff ] { diff } inlined? ] unit-test ! We could do this
+
+! Optimization on instance?
+[ f ] [ [ { number } declare fixnum instance? ] { tag fixnum? } inlined? ] unit-test
+
+UNION: ?fixnum fixnum POSTPONE: f ;
+[ t ] [ [ { ?fixnum } declare fixnum instance? ] { tag fixnum? } inlined? ] unit-test
+[ t ] [ [ { fixnum } declare fixnum instance? ] { tag fixnum? } inlined? ] unit-test
+
+! Actually check to make sure that the generated code works properly
+: instance-test-1 ( x -- ? ) { ?fixnum } declare fixnum instance? ;
+: instance-test-2 ( x -- ? ) { number } declare fixnum instance? ;
+: instance-test-3 ( x -- ? ) { POSTPONE: f } declare \ f instance? ;
+
+[ t ] [ 1 instance-test-1 ] unit-test
+[ f ] [ f instance-test-1 ] unit-test
+[ t ] [ 1 instance-test-2 ] unit-test
+[ f ] [ 1.1 instance-test-2 ] unit-test
+[ t ] [ f instance-test-3 ] unit-test
